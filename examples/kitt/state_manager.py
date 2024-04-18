@@ -6,7 +6,7 @@ from typing import List
 
 from livekit import agents, rtc
 from livekit.agents.llm import ChatMessage, ChatRole
-
+from chat_manager import ChatNode, LoomManager, ChatManager
 
 class StateManager:
     """Helper class to update the UI for the Agent Playground."""
@@ -17,10 +17,10 @@ class StateManager:
         self._agent_thinking = False
         self._current_transcription = ""
         self._current_response = ""
+        self._chat_manager = ChatManager(room)
+        self._loom_manager = LoomManager()
 
-        self._chat_history: List[agents.llm.ChatMessage] = [
-            ChatMessage(role=ChatRole.SYSTEM, text=prompt)
-        ]
+        self._loom_manager.add_message(message=ChatMessage(role=ChatRole.SYSTEM, text=prompt), new_root=True)
 
     @property
     def agent_speaking(self):
@@ -42,37 +42,28 @@ class StateManager:
 
     @property
     def chat_history(self):
-        return self._chat_history
+        return self._loom_manager.get_current_chat_history()
+    
+    def store_user_char(self, chat_text: str):
+        logging.info("Committing user chat: %s", chat_text)
+        msg = ChatMessage(role=ChatRole.USER, text=chat_text)
+        node = self._loom_manager.add_message(msg)
 
     def commit_user_transcription(self, transcription: str):
         logging.info("Committing user transcription: %s", transcription)
+        msg = ChatMessage(role=ChatRole.USER, text=transcription)
+        node = self._loom_manager.add_message(msg)
         asyncio.create_task(
-            self._room.local_participant.publish_data(
-                json.dumps(
-                    {
-                        "text": transcription,
-                        "timestamp": int(datetime.now().timestamp() * 1000),
-                    },
-                ),
-                topic="transcription",
-            )
+            self._chat_manager.send_message(node=node)
         )
-        self._chat_history.append(ChatMessage(role=ChatRole.USER, text=transcription))
 
     def commit_agent_response(self, response: str):
         logging.info("Committing agent response: %s", response)
+        msg = ChatMessage(role=ChatRole.ASSISTANT, text=response)
+        node = self._loom_manager.add_message(msg)
         asyncio.create_task(
-            self._room.local_participant.publish_data(
-                json.dumps(
-                    {
-                        "message": response,
-                        "timestamp": int(datetime.now().timestamp() * 1000),
-                    }
-                ),
-                topic="lk-chat-topic",
-            )
+            self._chat_manager.send_message(node=node)
         )
-        self._chat_history.append(ChatMessage(role=ChatRole.ASSISTANT, text=response))
 
     def _update_state(self):
         state = "listening"
