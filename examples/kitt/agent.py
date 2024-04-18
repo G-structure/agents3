@@ -48,15 +48,24 @@ async def entrypoint(job: JobContext):
     def on_data(dp: rtc.DataPacket):
         nonlocal current_transcription
         print("Data received: ", dp)
-        # Ignore if the agent is speaking
-        if state.agent_speaking:
-            return
         if dp.topic != "lk-chat-topic":
             return
         payload = json.loads(dp.data)
         message = payload["message"]
         current_transcription = message
-        asyncio.create_task(start_new_inference())
+        asyncio.create_task(handle_inference_task(chat_message=True))
+
+    async def handle_inference_task(force_text: str | None = None, chat_message: bool = False):
+        nonlocal current_transcription, inference_task
+        if inference_task:
+            # Cancel in-flight inference
+            inference_task.cancel()
+            try:
+                await inference_task
+            except asyncio.CancelledError:
+                pass
+        # Start new inference
+        inference_task = asyncio.create_task(start_new_inference(force_text=force_text, chat_message=chat_message))
 
     for participant in job.room.participants.values():
         for track_pub in participant.tracks.values():
@@ -75,7 +84,7 @@ async def entrypoint(job: JobContext):
     # Publish agent mic after waiting for user audio (simple way to avoid subscribing to self)
     await job.room.local_participant.publish_track(track, options)
 
-    async def start_new_inference(force_text: str | None = None):
+    async def start_new_inference(force_text: str | None = None, chat_message: bool = False):
         nonlocal current_transcription
 
         state.agent_thinking = True
@@ -109,7 +118,7 @@ async def entrypoint(job: JobContext):
                     if e.speaking:
                         agent_has_spoken = True
                         # Only commit user text for real transcriptions
-                        if not force_text:
+                        if not force_text and not chat_message:
                             state.commit_user_transcription(job.transcription)
                         commit_agent_text_if_needed()
                         current_transcription = ""
@@ -121,7 +130,7 @@ async def entrypoint(job: JobContext):
             stt_stream.push_frame(audio_frame_event.frame)
 
     async def stt_stream_task():
-        nonlocal current_transcription, inference_task
+        nonlocal current_transcription
         async for stt_event in stt_stream:
             # We eagerly try to run inference to keep the latency as low as possible.
             # If we get a new transcript, we update the working text, cancel in-flight inference,
@@ -132,12 +141,7 @@ async def entrypoint(job: JobContext):
                 if delta == "":
                     continue
                 current_transcription += " " + delta
-                # Cancel in-flight inference
-                if inference_task:
-                    inference_task.cancel()
-                    await inference_task
-                # Start new inference
-                inference_task = asyncio.create_task(start_new_inference())
+                asyncio.create_task(handle_inference_task())
 
     try:
         sip = job.room.name.startswith("sip")
