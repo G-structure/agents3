@@ -9,10 +9,9 @@ from typing import List
 from attr import define
 from livekit import agents, rtc
 from livekit.agents.llm import ChatContext, ChatMessage, ChatRole
-from livekit.plugins.elevenlabs import TTS
+from livekit.plugins.coqui import TTS
 from livekit.plugins.openai import LLM
 import openai
-
 
 class InferenceJob:
     def __init__(
@@ -27,7 +26,7 @@ class InferenceJob:
         self._transcription = transcription
         self._current_response = ""
         self._chat_history = chat_history
-        self._tts = TTS(model_id="eleven_turbo_v2")
+        self._tts = TTS()
         self._tts_stream = self._tts.stream()
         self._llm = LLM(client=openai.AsyncOpenAI(base_url="https://openrouter.ai/api/v1"), model="mistralai/mixtral-8x7b-instruct:nitro")
         self._run_task = asyncio.create_task(self._run())
@@ -141,8 +140,8 @@ class InferenceJob:
             delta = chunk.choices[0].delta.content
             if delta is None:
                 break
-            self._tts_stream.push_text(delta)
             self.current_response += delta
+        self._tts_stream.push_text(self.current_response)
         self.finished_generating = True
         await self._tts_stream.flush()
 
