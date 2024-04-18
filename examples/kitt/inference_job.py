@@ -11,6 +11,7 @@ from livekit import agents, rtc
 from livekit.agents.llm import ChatContext, ChatMessage, ChatRole
 from livekit.plugins.elevenlabs import TTS
 from livekit.plugins.openai import LLM
+import openai
 
 
 class InferenceJob:
@@ -28,7 +29,7 @@ class InferenceJob:
         self._chat_history = chat_history
         self._tts = TTS(model_id="eleven_turbo_v2")
         self._tts_stream = self._tts.stream()
-        self._llm = LLM()
+        self._llm = LLM(client=openai.AsyncOpenAI(base_url="https://openrouter.ai/api/v1"), model="mistralai/mixtral-8x7b-instruct:nitro")
         self._run_task = asyncio.create_task(self._run())
         self._output_queue = asyncio.Queue[rtc.AudioFrame | None]()
         self._speaking = False
