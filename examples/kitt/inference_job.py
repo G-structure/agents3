@@ -12,6 +12,7 @@ from livekit.agents.llm import ChatContext, ChatMessage, ChatRole
 from livekit.plugins.coqui import TTS
 from livekit.plugins.openai import LLM
 import openai
+import re
 
 class InferenceJob:
     def __init__(
@@ -136,12 +137,24 @@ class InferenceJob:
             messages=self._chat_history
             + [ChatMessage(role=ChatRole.USER, text=self.transcription)]
         )
+        buffered_response = ""
         async for chunk in await self._llm.chat(history=chat_context):
             delta = chunk.choices[0].delta.content
             if delta is None:
                 break
+            buffered_response += delta
+            # Split the buffered response into sentences
+            sentences = re.split(r'(?<=[.!?]) +', buffered_response)
+            if len(sentences) > 1:  # We have more than one sentence
+                # Send all but the last sentence to TTS, in case the last one is incomplete
+                for sentence in sentences[:-1]:
+                    self._tts_stream.push_text(sentence)
+                # Keep the last sentence in the buffer
+                buffered_response = sentences[-1]
             self.current_response += delta
-        self._tts_stream.push_text(self.current_response)
+        # After the loop, push any remaining text in the buffer
+        if buffered_response:
+            self._tts_stream.push_text(buffered_response)
         self.finished_generating = True
         await self._tts_stream.flush()
 
