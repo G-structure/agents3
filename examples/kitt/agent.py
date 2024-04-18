@@ -152,10 +152,14 @@ async def entrypoint(job: JobContext):
     except Exception as e:
         print("Exception: ", e)
 
-
+active_sessions = set()
 async def request_fnc(req: JobRequest) -> None:
-    await req.accept(entrypoint, auto_subscribe=agents.AutoSubscribe.AUDIO_ONLY)
-
+    room_name = req.room.name
+    if room_name not in active_sessions:
+            active_sessions.add(room_name)
+            await req.accept(entrypoint, auto_subscribe=agents.AutoSubscribe.AUDIO_ONLY)
+    else:
+        print(f"Session {room_name} already has an active agent.")
 
 if __name__ == "__main__":
     cli.run_app(WorkerOptions(request_fnc=request_fnc))
