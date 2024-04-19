@@ -14,6 +14,7 @@ from livekit.rtc._proto.room_pb2 import DataPacketKind
 
 _CHAT_TOPIC = "lk-chat-topic"
 _CHAT_UPDATE_TOPIC = "lk-chat-update-topic"
+_CHAT_TREE_UPDATE_TOPIC = "lk-chat-tree-update-topic"
 
 EventTypes = Literal["message_received",]
 
@@ -31,7 +32,7 @@ class ChatNode:
         self.model: str = model
         self.type: str = type
         self.message: ChatMessage = message
-        self.children: List['ChatNode'] = []
+        self.alt_ids: List[str] = []
 
     def asjsondict(self):
         """Returns a JSON serializable dictionary representation of the node."""
@@ -48,7 +49,7 @@ class ChatNode:
             "character_id": self.character_id,
             "model": self.model,
             "type": self.type,
-            "children_ids": [child.id for child in self.children]
+            "alt_ids": self.alt_ids, 
         }
 
 class LoomManager:
@@ -74,19 +75,19 @@ class LoomManager:
             if new_root or (parent_id is None and self.current_node is None):
                 self.root_nodes.append(new_node)
             else:
-                parent_node = self.nodes_by_id.get(parent_id)
-                if parent_node:
-                    parent_node.children.append(new_node)
+                sibling_ids = [node.id for node in self.nodes_by_id.values() if node.parent_id == parent_id]
+                for sibling_id in sibling_ids:
+                    self.nodes_by_id[sibling_id].alt_ids.append(new_node.id)
+                    new_node.alt_ids.append(sibling_id)
+
             self.nodes_by_id[new_node.id] = new_node
+            self.set_current_node(new_node.id)
             return new_node
         except Exception as e:
             logging.error(f"Error adding message: {e}")
 
     def get_children_of_parent(self, parent_id: str) -> List[ChatNode]:
-        parent_node = self.nodes_by_id.get(parent_id)
-        if parent_node:
-            return parent_node.children
-        return []
+        return [node for node in self.nodes_by_id.values() if node.parent_id == parent_id]
 
     def get_current_chat_history(self) -> List[ChatMessage]:
         try:
@@ -135,6 +136,17 @@ class LoomManager:
             node.character_id = character_id
 
         return True
+
+    def collect_child_nodes(self, node_id: str) -> List[ChatNode]:
+        """Recursively collects all child nodes of a given node ID."""
+        nodes_to_send = []
+        node = self.nodes_by_id.get(node_id)
+        if node:
+            nodes_to_send.append(node)
+            child_nodes = self.get_children_of_parent(node_id)
+            for child_node in child_nodes:
+                nodes_to_send.extend(self.collect_child_nodes(child_node.id))
+        return nodes_to_send
     
 class ChatManager():
     """A utility class that sends and receives chat nodes in the active session.
@@ -143,15 +155,9 @@ class ChatManager():
     """
 
     def __init__(self, room: Room):
-        # super().__init__()
         self._lp = room.local_participant
         self._room = room
         self.nodes_by_id: Dict[str, ChatNode] = {}
-
-        # room.on("data_received", self._on_data_received)
-
-    # def close(self):
-        # self._room.off("data_received", self._on_data_received)
 
     async def send_message(self, node: ChatNode):
         """Send a chat node to the end user using LiveKit Chat Protocol.
@@ -186,19 +192,23 @@ class ChatManager():
             topic=_CHAT_UPDATE_TOPIC,
         )
 
-    # def on_message(self, callback: Callable[[ChatNode], None]):
-    #     """Register a callback to be called when a chat node is received from the end user."""
-    #     self._callback = callback
+    async def send_current_node_tree(self, nodes_to_send: List[ChatNode]):
+        """Sends the entire chat node tree as a single data structure.
 
-    # # TODO we must fix this
-    # def _on_data_received(self, dp: DataPacket):
-    #     if dp.topic == _CHAT_TOPIC or dp.topic == _CHAT_UPDATE_TOPIC:
-    #         try:
-    #             parsed = json.loads(dp.data)
-    #             # Assuming ChatNode has a from_jsondict class method to reconstruct the node
-    #             node = ChatNode.from_jsondict(parsed)
-    #             if dp.participant:
-    #                 node.participant = dp.participant.sid  # Assuming Participant has a sid attribute
-    #             self.emit("message_received", node)
-    #         except Exception as e:
-    #             logging.warning("failed to parse chat node: %s", e, exc_info=e)
+        Args:
+            nodes_to_send (List[ChatNode]): The list of ChatNode objects to send.
+        """
+        if not nodes_to_send:
+            logging.warning("No nodes provided to send.")
+            return
+
+        try:
+            tree_data = [node.asjsondict() for node in nodes_to_send]
+
+            await self._lp.publish_data(
+                payload=json.dumps({"nodes": tree_data}),
+                kind=DataPacketKind.KIND_RELIABLE,
+                topic=_CHAT_TREE_UPDATE_TOPIC,
+            )
+        except Exception as e:
+            logging.error(f"Error sending current node tree: {e}")
