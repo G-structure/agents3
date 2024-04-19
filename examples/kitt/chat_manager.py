@@ -66,18 +66,21 @@ class LoomManager:
         self.nodes_by_id: Dict[str, ChatNode] = {}
 
     def add_message(self, message: ChatMessage, parent_id: Optional[str] = None, character_id: Optional[str] = None, model: str = "default_model", type: str = "chat", new_root: bool = False) -> ChatNode:
-        if character_id is None:
-            character_id = self.character_id
+        try:
+            if character_id is None:
+                character_id = self.character_id
 
-        new_node = ChatNode(message, parent_id, self.conversation_id, character_id, model, type)
-        if new_root or (parent_id is None and self.current_node is None):
-            self.root_nodes.append(new_node)
-        else:
-            parent_node = self.nodes_by_id.get(parent_id)
-            if parent_node:
-                parent_node.children.append(new_node)
-        self.nodes_by_id[new_node.id] = new_node
-        return new_node
+            new_node = ChatNode(message, parent_id, self.conversation_id, character_id, model, type)
+            if new_root or (parent_id is None and self.current_node is None):
+                self.root_nodes.append(new_node)
+            else:
+                parent_node = self.nodes_by_id.get(parent_id)
+                if parent_node:
+                    parent_node.children.append(new_node)
+            self.nodes_by_id[new_node.id] = new_node
+            return new_node
+        except Exception as e:
+            logging.error(f"Error adding message: {e}")
 
     def get_children_of_parent(self, parent_id: str) -> List[ChatNode]:
         parent_node = self.nodes_by_id.get(parent_id)
@@ -86,14 +89,17 @@ class LoomManager:
         return []
 
     def get_current_chat_history(self) -> List[ChatMessage]:
-        if self.current_node:
-            history = []
-            node = self.current_node
-            while node:
-                history.append(node.message)
-                node = self.nodes_by_id.get(node.parent_id)
-            return list(reversed(history))
-        return []
+        try:
+            if self.current_node:
+                history = []
+                node = self.current_node
+                while node:
+                    history.append(node.message)
+                    node = self.nodes_by_id.get(node.parent_id)
+                return list(reversed(history))
+            return []
+        except Exception as e:
+            logging.error(f"Error adding message: {e}")
 
     def set_current_node(self, node_id: str) -> bool:
         node = self.nodes_by_id.get(node_id)
@@ -130,22 +136,22 @@ class LoomManager:
 
         return True
     
-class ChatManager(EventEmitter[EventTypes]):
+class ChatManager():
     """A utility class that sends and receives chat nodes in the active session.
 
     It implements LiveKit Chat Protocol, and serializes data to/from JSON data packets.
     """
 
     def __init__(self, room: Room):
-        super().__init__()
+        # super().__init__()
         self._lp = room.local_participant
         self._room = room
         self.nodes_by_id: Dict[str, ChatNode] = {}
 
-        room.on("data_received", self._on_data_received)
+        # room.on("data_received", self._on_data_received)
 
-    def close(self):
-        self._room.off("data_received", self._on_data_received)
+    # def close(self):
+        # self._room.off("data_received", self._on_data_received)
 
     async def send_message(self, node: ChatNode):
         """Send a chat node to the end user using LiveKit Chat Protocol.
