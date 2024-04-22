@@ -75,7 +75,7 @@ class StateManager:
     #     node = self._loom_manager.add_message(msg, parent_id=orginal_node.parent_id)
     #     node_tree = self._loom_manager.collect_child_nodes(self._loom_manager.current_node.id)
     #     asyncio.create_task(
-    #         self._chat_manager.send_current_node_tree(node_tree)
+    #         self._chat_manager.send_current_node_history(node_tree)
     #     )
 
     def change_active_node(self, node_id: str):
@@ -83,7 +83,7 @@ class StateManager:
         node = self._loom_manager.set_current_node(node_id)
         node_tree = self._loom_manager.get_current_node_history()
         asyncio.create_task(
-            self._chat_manager.send_current_node_tree(node_tree)
+            self._chat_manager.send_current_node_history(node_tree)
         )
     
     def roll_back_to_parent(self, node_id: str) -> Optional[str]:

@@ -14,7 +14,7 @@ from livekit.rtc._proto.room_pb2 import DataPacketKind
 
 _CHAT_TOPIC = "lk-chat-topic"
 _CHAT_UPDATE_TOPIC = "lk-chat-update-topic"
-_CHAT_TREE_UPDATE_TOPIC = "lk-chat-tree-update-topic"
+_CHAT_HISTORY_UPDATE_TOPIC = "lk-chat-history-update-topic"
 
 EventTypes = Literal["message_received",]
 
@@ -212,8 +212,8 @@ class ChatManager():
             topic=_CHAT_UPDATE_TOPIC,
         )
 
-    async def send_current_node_tree(self, nodes_to_send: List[ChatNode]):
-        """Sends the entire chat node tree as a single data structure.
+    async def send_current_node_history(self, nodes_to_send: List[ChatNode]):
+        """Sends the entire chat node history as a single data structure.
 
         Args:
             nodes_to_send (List[ChatNode]): The list of ChatNode objects to send.
@@ -223,14 +223,14 @@ class ChatManager():
             return
 
         try:
-            tree_data = [node.asjsondict() for node in nodes_to_send]
+            node_history_data = [node.asjsondict() for node in nodes_to_send]
 
             print(tree_data)
 
             await self._lp.publish_data(
-                payload=json.dumps({"nodes": tree_data}),
+                payload=json.dumps({"nodes": node_history_data}),
                 kind=DataPacketKind.KIND_RELIABLE,
-                topic=_CHAT_TREE_UPDATE_TOPIC,
+                topic=_CHAT_HISTORY_UPDATE_TOPIC,
             )
         except Exception as e:
             logging.error(f"Error sending current node tree: {e}")
