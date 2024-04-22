@@ -49,6 +49,9 @@ class StateManager:
         msg = ChatMessage(role=ChatRole.USER, text=chat_text)
         original_node = self._loom_manager.current_node
         node = self._loom_manager.add_message(msg, parent_id = original_node.id)
+        asyncio.create_task(
+            self.send_complete_node_tree()
+        )
 
     def commit_user_transcription(self, transcription: str):
         logging.info("Committing user transcription: %s", transcription)
@@ -58,6 +61,9 @@ class StateManager:
         asyncio.create_task(
             self._chat_manager.send_message(node=node)
         )
+        asyncio.create_task(
+            self.send_complete_node_tree()
+        )
 
     def commit_agent_response(self, response: str):
         logging.info("Committing agent response: %s", response)
@@ -66,6 +72,9 @@ class StateManager:
         node = self._loom_manager.add_message(msg, parent_id = original_node.id)
         asyncio.create_task(
             self._chat_manager.send_message(node=node)
+        )
+        asyncio.create_task(
+            self.send_complete_node_tree()
         )
     
     # def commit_alt_reponse(self, response: str, node_id: str):
@@ -81,9 +90,9 @@ class StateManager:
     def change_active_node(self, node_id: str):
         print("Changing active node to ID: %s", node_id)
         node = self._loom_manager.set_current_node(node_id)
-        node_tree = self._loom_manager.get_current_node_history()
+        node_history = self._loom_manager.get_current_node_history()
         asyncio.create_task(
-            self._chat_manager.send_current_node_history(node_tree)
+            self._chat_manager.send_current_node_history(node_history)
         )
     
     def roll_back_to_parent(self, node_id: str) -> Optional[str]:
@@ -114,3 +123,11 @@ class StateManager:
                 json.dumps({"agent_state": state})
             )
         )
+
+    async def send_complete_node_tree(self):
+        """Grabs all nodes from the LoomManager and sends the complete node tree to the client."""
+        try:
+            all_nodes = self._loom_manager.collect_all_nodes()
+            await self._chat_manager.send_node_tree(all_nodes)
+        except Exception as e:
+            logging.error(f"Error sending complete node tree: {e}")

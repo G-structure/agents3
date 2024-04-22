@@ -15,6 +15,7 @@ from livekit.rtc._proto.room_pb2 import DataPacketKind
 _CHAT_TOPIC = "lk-chat-topic"
 _CHAT_UPDATE_TOPIC = "lk-chat-update-topic"
 _CHAT_HISTORY_UPDATE_TOPIC = "lk-chat-history-update-topic"
+_NODE_TREE_UPDATE_TOPIC = "lk-node-tree-update-topic"
 
 EventTypes = Literal["message_received",]
 
@@ -89,6 +90,17 @@ class LoomManager:
 
     def get_children_of_parent(self, parent_id: str) -> List[ChatNode]:
         return [node for node in self.nodes_by_id.values() if node.parent_id == parent_id]
+
+    def collect_all_nodes(self) -> List[ChatNode]:
+        """Collects all nodes, starting from the root nodes and including all their descendants.
+
+        Returns:
+            List[ChatNode]: A list of all ChatNode objects in the tree.
+        """
+        all_nodes = []
+        for root_node in self.get_root_nodes():
+            all_nodes.extend(self.collect_child_nodes(root_node.id))
+        return all_nodes
 
     def get_current_chat_history(self) -> List[ChatMessage]:
         try:
@@ -225,8 +237,6 @@ class ChatManager():
         try:
             node_history_data = [node.asjsondict() for node in nodes_to_send]
 
-            print(tree_data)
-
             await self._lp.publish_data(
                 payload=json.dumps({"nodes": node_history_data}),
                 kind=DataPacketKind.KIND_RELIABLE,
@@ -234,3 +244,24 @@ class ChatManager():
             )
         except Exception as e:
             logging.error(f"Error sending current node tree: {e}")
+
+    async def send_node_tree(self, nodes_to_send: List[ChatNode]):
+        """Sends the specified list of node trees to the client.
+
+        Args:
+            nodes_to_send (List[ChatNode]): The list of ChatNode objects to send.
+        """
+        try:
+            if not nodes_to_send:
+                logging.warning("No nodes provided to send.")
+                return
+
+            node_tree_data = [node.asjsondict() for node in nodes_to_send]
+
+            await self._lp.publish_data(
+                payload=json.dumps({"nodes": node_tree_data}),
+                kind=DataPacketKind.KIND_RELIABLE,
+                topic=_NODE_TREE_UPDATE_TOPIC,
+            )
+        except Exception as e:
+            logging.error(f"Error sending node tree: {e}")
