@@ -7,6 +7,7 @@ from typing import List, Optional
 from livekit import agents, rtc
 from livekit.agents.llm import ChatMessage, ChatRole
 from chat_manager import ChatNode, LoomManager, ChatManager
+from character_manager import CharacterManager
 
 class StateManager:
     """Helper class to update the UI for the Agent Playground."""
@@ -19,8 +20,9 @@ class StateManager:
         self._current_response = ""
         self._chat_manager = ChatManager(room)
         self._loom_manager = LoomManager()
+        self._character_manager = CharacterManager()
+        # self._loom_manager.add_message(message=ChatMessage(role=ChatRole.SYSTEM, text=prompt), new_root=True)
 
-        self._loom_manager.add_message(message=ChatMessage(role=ChatRole.SYSTEM, text=prompt), new_root=True)
 
     @property
     def agent_speaking(self):
@@ -43,7 +45,33 @@ class StateManager:
     @property
     def chat_history(self):
         return self._loom_manager.get_current_chat_history()
-    
+
+    def update_character(self, payload):
+        try:
+            if not self._character_manager.character_loaded:
+                self._character_manager.update_from_card(payload)
+                logging.info("Character card set.")
+                self._loom_manager.add_message(message=ChatMessage(role=ChatRole.SYSTEM, text=self._character_manager.character_prompt), new_root=True)
+                messages = self._character_manager.starting_messages
+                if len(messages) > 1:
+                    for i, message in enumerate(messages[:-1]):  # Iterate through all but the last message
+                        role = ChatRole.USER if i % 2 == 0 else ChatRole.ASSISTANT
+                        original_node = self._loom_manager.current_node
+                        self._loom_manager.add_message(message=ChatMessage(role=role, text=message), parent_id=original_node.id)
+                    last_message = messages[-1]  # Handle the last message separately
+                else:
+                    last_message = messages[0] if messages else None  # Handle the case with only one message
+
+                # Here you can return the last_message or only message, or do additional processing if needed
+                return last_message, self._character_manager.base_model
+            else:
+                logging.info("Character card already set.")
+        except Exception as e:
+            logging.error(f"Error updating character: {e}")
+
+    def get_character(self) -> CharacterManager:
+        return self._character_manager
+        
     def store_user_char(self, chat_text: str):
         logging.info("Committing user chat: %s", chat_text)
         msg = ChatMessage(role=ChatRole.USER, text=chat_text)

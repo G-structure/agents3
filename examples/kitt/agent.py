@@ -42,6 +42,10 @@ async def entrypoint(job: JobContext):
 
     audio_stream_future = asyncio.Future[rtc.AudioStream]()
 
+    intro_text = INTRO
+    model = "mistralai/mixtral-8x7b-instruct:nitro"
+    character_ready_event = asyncio.Event()
+
     def on_track_subscribed(track: rtc.Track, *_):
         if track.kind == rtc.TrackKind.KIND_AUDIO:
             audio_stream_future.set_result(rtc.AudioStream(track))
@@ -61,7 +65,7 @@ async def entrypoint(job: JobContext):
             asyncio.create_task(handle_inference_task(chat_message=True))
         elif dp.topic == "character_card":
             # Handle character card data packet
-            handle_character_card(payload)
+            asyncio.create_task(handle_character_card(payload))
         elif dp.topic == "command":
             # Handle command data packet
             print("COMMAND")
@@ -70,8 +74,11 @@ async def entrypoint(job: JobContext):
             print(f"Received data for unhandled topic: {dp.topic}")
 
     async def handle_character_card(payload):
+        nonlocal intro_text, character_ready_event, model
         # Implement handling of character card data packet
         print("Handling character card:", payload)
+        intro_text, model = state.update_character(payload["character"])
+        character_ready_event.set()
 
     async def handle_command(payload):
         # Implement handling of command data packet
@@ -93,7 +100,7 @@ async def entrypoint(job: JobContext):
         state.change_active_node(node_id)
     
     async def handle_inference_task(force_text: str | None = None, chat_message: bool = False):
-        nonlocal current_transcription, inference_task
+        nonlocal current_transcription, inference_task, model
         if inference_task:
             # Cancel in-flight inference
             inference_task.cancel()
@@ -102,7 +109,7 @@ async def entrypoint(job: JobContext):
             except asyncio.CancelledError:
                 pass
         # Start new inference
-        inference_task = asyncio.create_task(start_new_inference(force_text=force_text, chat_message=chat_message))
+        inference_task = asyncio.create_task(start_new_inference(force_text=force_text, chat_message=chat_message, llm_model=model))
 
     for participant in job.room.participants.values():
         for track_pub in participant.tracks.values():
@@ -121,7 +128,7 @@ async def entrypoint(job: JobContext):
     # Publish agent mic after waiting for user audio (simple way to avoid subscribing to self)
     await job.room.local_participant.publish_track(track, options)
 
-    async def start_new_inference(force_text: str | None = None, chat_message: bool = False):
+    async def start_new_inference(force_text: str | None = None, chat_message: bool = False, llm_model: str = "mistralai/mixtral-8x7b-instruct:nitro"):
         nonlocal current_transcription
 
         state.agent_thinking = True
@@ -130,6 +137,7 @@ async def entrypoint(job: JobContext):
             audio_source=source,
             chat_history=state.chat_history,
             force_text_response=force_text,
+            llm_model=llm_model
         )
 
         try:
@@ -181,9 +189,8 @@ async def entrypoint(job: JobContext):
                 asyncio.create_task(handle_inference_task())
 
     try:
-        sip = job.room.name.startswith("sip")
-        intro_text = SIP_INTRO if sip else INTRO
-        inference_task = asyncio.create_task(start_new_inference(force_text=intro_text))
+        await character_ready_event.wait()
+        character_ready_event = asyncio.create_task(start_new_inference(force_text=intro_text, llm_model=model))
         async with asyncio.TaskGroup() as tg:
             tg.create_task(audio_stream_task())
             tg.create_task(stt_stream_task())

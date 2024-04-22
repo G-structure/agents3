@@ -20,7 +20,8 @@ class InferenceJob:
         transcription: str,
         audio_source: rtc.AudioSource,
         chat_history: List[ChatMessage],
-        force_text_response: str | None = None,
+        llm_model: str,
+        force_text_response: str | None = None
     ):
         self._id = uuid.uuid4()
         self._audio_source = audio_source
@@ -29,7 +30,7 @@ class InferenceJob:
         self._chat_history = chat_history
         self._tts = TTS()
         self._tts_stream = self._tts.stream()
-        self._llm = LLM(client=openai.AsyncOpenAI(base_url="https://openrouter.ai/api/v1"), model="mistralai/mixtral-8x7b-instruct:nitro")
+        self._llm = LLM(client=openai.AsyncOpenAI(base_url="https://openrouter.ai/api/v1"), model=llm_model)
         self._run_task = asyncio.create_task(self._run())
         self._output_queue = asyncio.Queue[rtc.AudioFrame | None]()
         self._speaking = False
