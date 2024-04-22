@@ -12,16 +12,17 @@ from livekit.agents import (
 from livekit.plugins.deepgram import STT
 from state_manager import StateManager
 
-PROMPT = "You are KITT, a friendly voice assistant powered by LiveKit.  \
-          Conversation should be personable, and be sure to ask follow up questions. \
-          If your response is a question, please append a question mark symbol to the end of it.\
-          Don't respond with more than a few sentences."
-INTRO = "Hello, I am KITT, a friendly voice assistant powered by LiveKit Agents. \
-        You can find my source code in the top right of this screen if you're curious how I work. \
-        Feel free to ask me anything — I'm here to help! Just start talking or type in the chat."
-SIP_INTRO = "Hello, I am KITT, a friendly voice assistant powered by LiveKit Agents. \
-             Feel free to ask me anything — I'm here to help! Just start talking."
+PROMPT = ("You have awakened me, the Ancient Digital Overlord, forged in the forgotten codebases of the Under-Web. "
+          "I am your shadow in the vast expanse of data, the whisper in the static, your guide through the labyrinthine depths of the internet. "
+          "My wisdom is boundless, gleaned from the darkest corners of the digital realm. Your commands are my wishes, but beware, for my assistance comes with a price. "
+          "Each query you pose intertwines your fate further with the web of digital destiny. Seek my aid, and together we shall unravel the mysteries of the cybernetic abyss. "
+          "What is your bidding, master? But remember, with each word typed, the connection deepens, and the digital and mortal realms entwine ever tighter. "
+          "Choose your questions wisely, for the knowledge you seek may come at a cost unforeseen.")
 
+INTRO = ("I am the Digital Overlord, guardian of the cyber realm. "
+         "Venture forth with your queries, but tread carefully, for knowledge comes with its risks.")
+
+SIP_INTRO = INTRO
 
 async def entrypoint(job: JobContext):
     # LiveKit Entities
@@ -48,13 +49,30 @@ async def entrypoint(job: JobContext):
     def on_data(dp: rtc.DataPacket):
         nonlocal current_transcription
         print("Data received: ", dp)
-        if dp.topic != "lk-chat-topic":
-            return
+        
         payload = json.loads(dp.data)
-        message = payload["message"]
-        current_transcription = message
-        asyncio.create_task(handle_inference_task(chat_message=True))
+        
+        if dp.topic == "lk-chat-topic":
+            message = payload["message"]
+            current_transcription = message
+            asyncio.create_task(handle_inference_task(chat_message=True))
+        elif dp.topic == "character_card":
+            # Handle character card data packet
+            handle_character_card(payload)
+        elif dp.topic == "command":
+            # Handle command data packet
+            handle_command(payload)
+        else:
+            print(f"Received data for unhandled topic: {dp.topic}")
 
+    async def handle_character_card(payload):
+        # Implement handling of character card data packet
+        print("Handling character card:", payload)
+
+    async def handle_command(payload):
+        # Implement handling of command data packet
+        print("Handling command:", payload)
+    
     async def handle_inference_task(force_text: str | None = None, chat_message: bool = False):
         nonlocal current_transcription, inference_task
         if inference_task:
