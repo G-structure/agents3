@@ -79,12 +79,18 @@ async def entrypoint(job: JobContext):
         if payload["data"].get("command") == "rgen":
             node_id = payload["data"].get("arg")
             await handel_rgen(node_id)
+        elif payload["data"].get("command") == "alt":
+            node_id = payload["data"].get("arg")
+            await handel_alt(node_id)
     
     async def handel_rgen(node_id: str):
         nonlocal current_transcription
         current_transcription = state.roll_back_to_parent(node_id)
         print(current_transcription)
         asyncio.create_task(handle_inference_task(chat_message=True))
+    
+    async def handel_alt(node_id: str):
+        state.change_active_node(node_id)
     
     async def handle_inference_task(force_text: str | None = None, chat_message: bool = False):
         nonlocal current_transcription, inference_task
