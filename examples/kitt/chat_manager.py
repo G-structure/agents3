@@ -79,7 +79,8 @@ class LoomManager:
                 for sibling_id in sibling_ids:
                     self.nodes_by_id[sibling_id].alt_ids.append(new_node.id)
                     new_node.alt_ids.append(sibling_id)
-
+            
+            new_node.alt_ids.append(new_node.id)
             self.nodes_by_id[new_node.id] = new_node
             self.set_current_node(new_node.id)
             return new_node
@@ -101,6 +102,25 @@ class LoomManager:
             return []
         except Exception as e:
             logging.error(f"Error adding message: {e}")
+    
+    def get_current_node_history(self) -> List[ChatNode]:
+        """
+        Retrieves the history of chat nodes leading up to the current node.
+        
+        Returns:
+            List[ChatNode]: A list of ChatNode objects from the root to the current node, in chronological order.
+        """
+        try:
+            if self.current_node:
+                history_nodes = []
+                node = self.current_node
+                while node:
+                    history_nodes.append(node)
+                    node = self.nodes_by_id.get(node.parent_id)
+                return list(reversed(history_nodes))
+            return []
+        except Exception as e:
+            logging.error(f"Error retrieving node history: {e}")
 
     def set_current_node(self, node_id: str) -> bool:
         node = self.nodes_by_id.get(node_id)
@@ -204,6 +224,8 @@ class ChatManager():
 
         try:
             tree_data = [node.asjsondict() for node in nodes_to_send]
+
+            print(tree_data)
 
             await self._lp.publish_data(
                 payload=json.dumps({"nodes": tree_data}),

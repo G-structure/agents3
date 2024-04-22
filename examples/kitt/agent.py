@@ -55,13 +55,17 @@ async def entrypoint(job: JobContext):
         if dp.topic == "lk-chat-topic":
             message = payload["message"]
             current_transcription = message
+            print("USER MESSAGE")
+            print(message)
+            state.store_user_char(message)
             asyncio.create_task(handle_inference_task(chat_message=True))
         elif dp.topic == "character_card":
             # Handle character card data packet
             handle_character_card(payload)
         elif dp.topic == "command":
             # Handle command data packet
-            handle_command(payload)
+            print("COMMAND")
+            asyncio.create_task(handle_command(payload))
         else:
             print(f"Received data for unhandled topic: {dp.topic}")
 
@@ -72,6 +76,15 @@ async def entrypoint(job: JobContext):
     async def handle_command(payload):
         # Implement handling of command data packet
         print("Handling command:", payload)
+        if payload["data"].get("command") == "rgen":
+            node_id = payload["data"].get("arg")
+            await handel_rgen(node_id)
+    
+    async def handel_rgen(node_id: str):
+        nonlocal current_transcription
+        current_transcription = state.roll_back_to_parent(node_id)
+        print(current_transcription)
+        asyncio.create_task(handle_inference_task(chat_message=True))
     
     async def handle_inference_task(force_text: str | None = None, chat_message: bool = False):
         nonlocal current_transcription, inference_task
