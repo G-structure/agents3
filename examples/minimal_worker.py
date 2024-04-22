@@ -3,8 +3,8 @@ import logging
 from livekit.agents import JobContext, JobRequest, WorkerOptions, cli
 
 
-async def entrypoint(ctx: JobContext):
-    logging.info("starting entrypoint")
+async def entrypoint(job: JobContext):
+    logging.info("starting voice assistant...")
 
     # Add your agent logic here!
 
