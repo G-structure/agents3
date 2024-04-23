@@ -176,6 +176,8 @@ class StateManager:
         """Grabs all nodes from the LoomManager and sends the complete node tree to the client."""
         try:
             all_nodes = self._loom_manager.collect_all_nodes()
-            await self._chat_manager.send_node_tree(all_nodes)
+            asyncio.create_task(
+                self._chat_manager.send_node_tree(all_nodes)
+            )
         except Exception as e:
             logging.error(f"Error send_complete_node_tree: {e}")

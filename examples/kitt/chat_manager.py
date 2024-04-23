@@ -12,6 +12,8 @@ from livekit.rtc import Room, Participant, DataPacket
 from livekit.rtc._event_emitter import EventEmitter
 from livekit.rtc._proto.room_pb2 import DataPacketKind
 import sqlite3
+from typing import Union
+import uuid
 
 _CHAT_TOPIC = "lk-chat-topic"
 _CHAT_UPDATE_TOPIC = "lk-chat-update-topic"
@@ -449,23 +451,32 @@ class ChatManager():
         except Exception as e:
             logging.error(f"Error send_current_node_history: {e}")
 
-    async def send_node_tree(self, nodes_to_send: List[ChatNode]):
-        """Sends the specified list of node trees to the client.
-
-        Args:
-            nodes_to_send (List[ChatNode]): The list of ChatNode objects to send.
-        """
+    async def send_node_tree(self, nodes_to_send: List[ChatNode], chunk_size: int = 10):
         try:
             if not nodes_to_send:
                 logging.warning("No nodes provided to send.")
                 return
 
-            node_tree_data = [node.asjsondict() for node in nodes_to_send]
+            total_nodes = len(nodes_to_send)
+            total_chunks = (total_nodes + chunk_size - 1) // chunk_size
+            tree_id = str(uuid.uuid4())
 
-            await self._lp.publish_data(
-                payload=json.dumps({"nodes": node_tree_data}),
-                kind=DataPacketKind.KIND_RELIABLE,
-                topic=_NODE_TREE_UPDATE_TOPIC,
-            )
+            for i in range(total_chunks):
+                start_index = i * chunk_size
+                end_index = min((i + 1) * chunk_size, total_nodes)
+                chunk_nodes = nodes_to_send[start_index:end_index]
+
+                node_tree_data = [node.asjsondict() for node in chunk_nodes]
+
+                await self._lp.publish_data(
+                    payload=json.dumps({
+                        "nodes": node_tree_data,
+                        "chunk": i + 1,
+                        "total_chunks": total_chunks,
+                        "tree_id": tree_id
+                    }),
+                    kind=DataPacketKind.KIND_LOSSY,
+                    topic=_NODE_TREE_UPDATE_TOPIC,
+                )
         except Exception as e:
-            logging.error(f"Error send_node_tree: {e}")
+            logging.error(f"Error sending node tree: {e}")
