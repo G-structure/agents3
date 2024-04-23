@@ -19,8 +19,10 @@ class CharacterManager:
         self.canvas_model = ""
         self.canvas_interval = 0
         self.character_loaded = False
+        self.id = ""
 
     def update_from_card(self, character_card):
+        self.id = character_card.get("id") if character_card.get("id", "") != "" else self.id
         self.name = character_card.get("name") if character_card.get("name", "") != "" else self.name
         self.character_prompt = character_card.get("character_prompt") if character_card.get("character_prompt", "") != "" else self.character_prompt
         self.video_system_prompt = character_card.get("video_system_prompt") if character_card.get("video_system_prompt", "") != "" else self.video_system_prompt
