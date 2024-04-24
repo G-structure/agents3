@@ -70,7 +70,7 @@ class LoomManager:
         self.current_node: Optional[ChatNode] = None
 
         self.db_name = 'chat_nodes.db'
-        # self.init_db()
+        self.init_db()
 
     def init_db(self):
         """Initializes the database and creates the chat_nodes table if it doesn't exist."""
@@ -451,7 +451,7 @@ class ChatManager():
         except Exception as e:
             logging.error(f"Error send_current_node_history: {e}")
 
-    async def send_node_tree(self, nodes_to_send: List[ChatNode], chunk_size: int = 10):
+    async def send_node_tree(self, nodes_to_send: List[ChatNode], chunk_size: int = 25):
         try:
             if not nodes_to_send:
                 logging.warning("No nodes provided to send.")
