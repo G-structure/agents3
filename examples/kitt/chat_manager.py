@@ -18,7 +18,7 @@ import uuid
 _CHAT_TOPIC = "lk-chat-topic"
 _CHAT_UPDATE_TOPIC = "lk-chat-update-topic"
 _CHAT_HISTORY_UPDATE_TOPIC = "lk-chat-history-update-topic"
-_NODE_TREE_UPDATE_TOPIC = "lk-node-tree-update-topic"
+_NODE_TREE_UPDATE_TOPIC = "lk-node-tree-init-topic"
 
 EventTypes = Literal["message_received",]
 
