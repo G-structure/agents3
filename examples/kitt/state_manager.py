@@ -66,6 +66,10 @@ class StateManager:
                 else:
                     last_message = messages[0] if messages else None  # Handle the case with only one message
 
+                asyncio.create_task(
+                    self.send_complete_node_tree()
+                )
+
                 # Here you can return the last_message or only message, or do additional processing if needed
                 return last_message, self._character_manager.base_model
             else:
@@ -83,7 +87,7 @@ class StateManager:
             original_node = self._loom_manager.current_node
             node = self._loom_manager.add_message(msg, parent_id = original_node.id)
             asyncio.create_task(
-                self.send_complete_node_tree()
+                self.send_update_node_tree(node)
             )
         except Exception as e:
             logging.error(f"Error store_user_char: {e}")
@@ -99,7 +103,7 @@ class StateManager:
                 self._chat_manager.send_message(node=node)
             )
             asyncio.create_task(
-                self.send_complete_node_tree()
+                self.send_update_node_tree(node)
             )
         except Exception as e:
             logging.error(f"Error commit_user_transcription: {e}")
@@ -114,7 +118,7 @@ class StateManager:
                 self._chat_manager.send_message(node=node)
             )
             asyncio.create_task(
-                self.send_complete_node_tree()
+                self.send_update_node_tree(node)
             )
         except Exception as e:
             logging.error(f"Error commit_agent_response: {e}")
@@ -178,6 +182,15 @@ class StateManager:
             all_nodes = self._loom_manager.collect_all_nodes()
             asyncio.create_task(
                 self._chat_manager.send_node_tree(all_nodes)
+            )
+        except Exception as e:
+            logging.error(f"Error send_complete_node_tree: {e}")
+
+    async def send_update_node_tree(self, node: ChatNode):
+        """Grabs all nodes from the LoomManager and sends the complete node tree to the client."""
+        try:
+            asyncio.create_task(
+                self._chat_manager.send_update_node_tree(node)
             )
         except Exception as e:
             logging.error(f"Error send_complete_node_tree: {e}")

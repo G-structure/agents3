@@ -18,7 +18,8 @@ import uuid
 _CHAT_TOPIC = "lk-chat-topic"
 _CHAT_UPDATE_TOPIC = "lk-chat-update-topic"
 _CHAT_HISTORY_UPDATE_TOPIC = "lk-chat-history-update-topic"
-_NODE_TREE_UPDATE_TOPIC = "lk-node-tree-init-topic"
+_NODE_TREE_INIT_TOPIC = "lk-node-tree-init-topic"
+_NODE_TREE_UPDATE_TOPIC = "lk-node-tree-update-topic"
 
 EventTypes = Literal["message_received",]
 
@@ -476,7 +477,21 @@ class ChatManager():
                         "tree_id": tree_id
                     }),
                     kind=DataPacketKind.KIND_LOSSY,
-                    topic=_NODE_TREE_UPDATE_TOPIC,
+                    topic=_NODE_TREE_INIT_TOPIC,
                 )
         except Exception as e:
             logging.error(f"Error sending node tree: {e}")
+    
+    async def send_update_node_tree(self, node: ChatNode):
+        try:
+            # Convert the single ChatNode to its JSON dictionary representation
+            node_data = node.asjsondict()
+
+            # Send the node data to the client using the LiveKit Chat Protocol
+            await self._lp.publish_data(
+                payload=json.dumps(node_data),
+                kind=DataPacketKind.KIND_LOSSY,
+                topic=_NODE_TREE_UPDATE_TOPIC,
+            )
+        except Exception as e:
+            logging.error(f"Error sending update node tree: {e}")
