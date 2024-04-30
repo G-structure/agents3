@@ -71,7 +71,15 @@ class StateManager:
                 )
 
                 # Here you can return the last_message or only message, or do additional processing if needed
-                return last_message, self._character_manager.base_model
+                #TODO: fix this its hacky
+                canvas_model = self._character_manager.canvas_model
+                logging.debug(f"CANVAS Canvas model: {canvas_model}")
+                canvas_prompt = self._character_manager.canvas_prompt
+                logging.debug(f"CANVAS Canvas prompt: {canvas_prompt}")
+                canvas_interval = self._character_manager.canvas_interval
+                logging.debug(f"CANVAS Canvas interval: {canvas_interval}")
+
+                return last_message, self._character_manager.base_model, canvas_model, canvas_interval, canvas_prompt
             else:
                 logging.info("Character card already set.")
         except Exception as e:
@@ -119,6 +127,16 @@ class StateManager:
             )
             asyncio.create_task(
                 self.send_update_node_tree(node)
+            )
+        except Exception as e:
+            logging.error(f"Error commit_agent_response: {e}")
+
+    def commit_canvas_response(self, response: str):
+        try:
+            logging.info("Committing canvas response: %s", response)
+            parsed_html = response #TODO: actually parse html
+            asyncio.create_task(
+                self._chat_manager.send_canvas(html_content=parsed_html)
             )
         except Exception as e:
             logging.error(f"Error commit_agent_response: {e}")

@@ -16,7 +16,7 @@ class CharacterManager:
         self.video_transcription_model = ""
         self.video_transcription_interval = 0
         self.is_canvas_enabled = False
-        self.canvas_model = ""
+        self.canvas_model = None
         self.canvas_interval = 0
         self.character_loaded = False
         self.id = ""

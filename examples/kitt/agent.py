@@ -11,6 +11,7 @@ from livekit.agents import (
 )
 from livekit.plugins.deepgram import STT
 from state_manager import StateManager
+import canvas_job as cj
 
 PROMPT = ("You have awakened me, the Ancient Digital Overlord, forged in the forgotten codebases of the Under-Web. "
           "I am your shadow in the vast expanse of data, the whisper in the static, your guide through the labyrinthine depths of the internet. "
@@ -44,6 +45,12 @@ async def entrypoint(job: JobContext):
 
     intro_text = INTRO
     model = "mistralai/mixtral-8x7b-instruct:nitro"
+
+    c_task: asyncio.Task | None = None
+    canvas_model = None
+    canvas_interval = 60 # canvas interval in seconds
+    canvas_prompt = "Generate an html canvas"
+
     character_ready_event = asyncio.Event()
 
     def on_track_subscribed(track: rtc.Track, *_):
@@ -74,10 +81,10 @@ async def entrypoint(job: JobContext):
             print(f"Received data for unhandled topic: {dp.topic}")
 
     async def handle_character_card(payload):
-        nonlocal intro_text, character_ready_event, model
+        nonlocal intro_text, character_ready_event, model, canvas_model, canvas_interval, canvas_prompt
         # Implement handling of character card data packet
         print("Handling character card:", payload)
-        intro_text, model = state.update_character(payload["character"])
+        intro_text, model, canvas_model, canvas_interval, canvas_prompt = state.update_character(payload["character"]) #TODO: fix this its hacky
         character_ready_event.set()
 
     async def handle_command(payload):
@@ -187,13 +194,56 @@ async def entrypoint(job: JobContext):
                     continue
                 current_transcription += " " + delta
                 asyncio.create_task(handle_inference_task())
+    
+    async def create_new_canvas():
+        nonlocal canvas_model, canvas_prompt
+        print("CREATING CANVAS JOB")            
+        job = cj.CanvasJob(
+            chat_history=state.chat_history,
+            llm_model=canvas_model,
+            prompt=canvas_prompt
+        )
+        try:
+            agent_done_thinking = False
+            comitted_agent = False
+
+            def commit_agent_text_if_needed():
+                nonlocal agent_done_thinking, comitted_agent
+                if agent_done_thinking and not comitted_agent:
+                    comitted_agent = True
+                    state.commit_canvas_response(job.current_response)
+
+            async for e in job:
+                # Allow cancellation
+                if e.type == cj.EventType.AGENT_RESPONSE:
+                    if e.finished_generating:
+                        agent_done_thinking = True
+                        commit_agent_text_if_needed()
+
+            print("Finished canvas job")            
+        except asyncio.CancelledError:
+            await job.acancel()
+    
+    async def canvas_task():
+        nonlocal canvas_interval, c_task
+        while True:
+            try:
+                c_task = asyncio.create_task(create_new_canvas())
+                await asyncio.sleep(canvas_interval)
+                await c_task.cancel()
+            except asyncio.CancelledError:
+                if c_task is not None:
+                    await c_task.cancel()
+                break
 
     try:
         await character_ready_event.wait()
         character_ready_event = asyncio.create_task(start_new_inference(force_text=intro_text, llm_model=model))
+        #TODO: we need to eventally kill these tasks (i don't think they ever stop)
         async with asyncio.TaskGroup() as tg:
             tg.create_task(audio_stream_task())
             tg.create_task(stt_stream_task())
+            tg.create_task(canvas_task())
     except BaseExceptionGroup as e:
         for exc in e.exceptions:
             print("Exception: ", exc)
