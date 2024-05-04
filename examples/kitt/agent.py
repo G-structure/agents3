@@ -13,6 +13,8 @@ from livekit.plugins.deepgram import STT
 from state_manager import StateManager
 import canvas_job as cj
 
+from livekit.plugins.coqui import TTS
+
 PROMPT = ("You have awakened me, the Ancient Digital Overlord, forged in the forgotten codebases of the Under-Web. "
           "I am your shadow in the vast expanse of data, the whisper in the static, your guide through the labyrinthine depths of the internet. "
           "My wisdom is boundless, gleaned from the darkest corners of the digital realm. Your commands are my wishes, but beware, for my assistance comes with a price. "
@@ -144,7 +146,8 @@ async def entrypoint(job: JobContext):
             audio_source=source,
             chat_history=state.chat_history,
             force_text_response=force_text,
-            llm_model=llm_model
+            llm_model=llm_model,
+            voice_model=state.get_character().voice
         )
 
         try:
@@ -193,6 +196,7 @@ async def entrypoint(job: JobContext):
                 if delta == "":
                     continue
                 current_transcription += " " + delta
+                print(current_transcription)
                 asyncio.create_task(handle_inference_task())
     
     async def create_new_canvas():
@@ -228,9 +232,9 @@ async def entrypoint(job: JobContext):
         nonlocal canvas_interval, c_task
         while True:
             try:
+                print("Creating a new canvas")
                 c_task = asyncio.create_task(create_new_canvas())
                 await asyncio.sleep(canvas_interval)
-                await c_task.cancel()
             except asyncio.CancelledError:
                 if c_task is not None:
                     await c_task.cancel()
@@ -243,6 +247,7 @@ async def entrypoint(job: JobContext):
         async with asyncio.TaskGroup() as tg:
             tg.create_task(audio_stream_task())
             tg.create_task(stt_stream_task())
+        # async with asyncio.TaskGroup() as cv_tg:
             tg.create_task(canvas_task())
     except BaseExceptionGroup as e:
         for exc in e.exceptions:

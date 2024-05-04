@@ -11,7 +11,7 @@ import base64
 import contextlib
 
 API_BASE_URL = "http://10.0.0.119:6666"
-DEFAULT_VOICE = "goldvoice"
+DEFAULT_VOICE = "bdc30e40-0903-4803-9cec-aa43e5ae9b05"
 
 @dataclass
 class TTSOptions:
@@ -38,6 +38,36 @@ class TTS(tts.TTS):
     
     def set_voice(self, voice: str) -> None:
         self._config.voice = voice
+
+    @staticmethod
+    async def load_voice(voice_id: str, session: aiohttp.ClientSession, base_url: str) -> None:
+        data = {
+            "model_id": voice_id
+        }
+
+        # Send the POST request to load the custom voice model into memory
+        async with session.post(
+            f"{base_url}/api/load-custom-model",
+            data=data,
+        ) as resp:
+            # Check the response status
+            if resp.status != 200:
+                logging.error(f"Failed to load custom voice model: {resp.status}")
+    
+    @staticmethod
+    async def discard_voice(voice_id: str, session: aiohttp.ClientSession, base_url: str) -> None:
+        data = {
+            "model_id": voice_id
+        }
+
+        # Send the POST request to discard the custom voice model from memory
+        async with session.post(
+            f"{base_url}/api/discard-custom-model",
+            data=data,
+        ) as resp:
+            # Check the response status
+            if resp.status != 200:
+                logging.error(f"Failed to discard custom voice model: {resp.status}")
     
     async def upload_audio(self, file_name: str, buffer: list[rtc.AudioFrame]) -> None:
         print("uploading audio")
@@ -82,11 +112,11 @@ class TTS(tts.TTS):
 
         async def fetch_task():
             async with self._session.get(
-                f"{self._config.base_url}/api/tts-cloned-stream",
+                f"{self._config.base_url}/api/tts-custom-model",
                 params={
                     "text": text,
                     "language": "en",
-                    "style-wav": self._config.voice,
+                    "model_id": self._config.voice,
                 },
             ) as resp:
                 data = await resp.read()
@@ -149,11 +179,11 @@ class SynthesizeStream(tts.SynthesizeStream):
             self._queue.task_done()
 
             async with self._session.get(
-                f"{self._config.base_url}/api/tts-cloned-stream",
+                f"{self._config.base_url}/api/tts-custom-model",
                 params={
                     "text": text,
                     "language": "en",
-                    "style-wav": self._config.voice,
+                    "model_id": self._config.voice,
                 },
             ) as resp:
                 self._event_queue.put_nowait(

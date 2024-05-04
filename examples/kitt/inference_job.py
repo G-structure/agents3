@@ -21,6 +21,7 @@ class InferenceJob:
         audio_source: rtc.AudioSource,
         chat_history: List[ChatMessage],
         llm_model: str,
+        voice_model: str,
         force_text_response: str | None = None
     ):
         self._id = uuid.uuid4()
@@ -28,7 +29,7 @@ class InferenceJob:
         self._transcription = transcription
         self._current_response = ""
         self._chat_history = chat_history
-        self._tts = TTS()
+        self._tts = TTS(voice=voice_model)
         self._tts_stream = self._tts.stream()
         self._llm = LLM(client=openai.AsyncOpenAI(base_url="https://openrouter.ai/api/v1"), model=llm_model)
         self._run_task = asyncio.create_task(self._run())
