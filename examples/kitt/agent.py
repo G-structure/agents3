@@ -250,7 +250,7 @@ async def entrypoint(job: JobContext):
             tg.create_task(audio_stream_task())
             tg.create_task(stt_stream_task())
         # async with asyncio.TaskGroup() as cv_tg:
-            tg.create_task(canvas_task())
+            # tg.create_task(canvas_task())
     except BaseExceptionGroup as e:
         for exc in e.exceptions:
             print("Exception: ", exc)
