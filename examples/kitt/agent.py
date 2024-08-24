@@ -236,8 +236,10 @@ async def entrypoint(job: JobContext):
                 c_task = asyncio.create_task(create_new_canvas())
                 await asyncio.sleep(canvas_interval)
             except asyncio.CancelledError:
-                if c_task is not None:
-                    await c_task.cancel()
+                # if c_task is not None:
+                    # await c_task.cancel()
+                break
+            except Exception as e:
                 break
 
     try:
